@@ -1,10 +1,12 @@
 """
 This script runs the FlaskWebProject application using a development server.
 """
+from werkzeug.middleware.proxy_fix import ProxyFix
 
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 from os import environ
 from FlaskWebProject import app
-
+app = Flask(__name__)
 if __name__ == '__main__':
     HOST = environ.get('SERVER_HOST', 'localhost')
     try:
