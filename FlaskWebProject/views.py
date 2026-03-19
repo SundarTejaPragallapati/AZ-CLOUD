@@ -12,7 +12,10 @@ from flask_login import current_user, login_user, logout_user, login_required
 from FlaskWebProject.models import User, Post
 import msal
 import uuid
+import logging
 
+# ---------------- LOGGING ----------------
+logger = logging.getLogger(__name__)
 
 # -------- Blob Storage URL --------
 imageSourceUrl = (
@@ -25,7 +28,6 @@ imageSourceUrl = (
 @app.route('/home')
 @login_required
 def home():
-    user = User.query.filter_by(username=current_user.username).first_or_404()
     posts = Post.query.all()
     return render_template('index.html', title='Home Page', posts=posts)
 
@@ -35,6 +37,7 @@ def home():
 @login_required
 def new_post():
     form = PostForm(request.form)
+
     if form.validate_on_submit():
         post = Post()
         post.save_changes(form, request.files['image_path'], current_user.id, new=True)
@@ -70,6 +73,7 @@ def post(id):
 # -------- LOGIN PAGE --------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+
     if current_user.is_authenticated:
         return redirect(url_for('home'))
 
@@ -77,15 +81,22 @@ def login():
 
     # -------- Local login --------
     if form.validate_on_submit():
+
         user = User.query.filter_by(username=form.username.data).first()
 
         if user is None or not user.check_password(form.password.data):
+
+            logger.warning(f"Invalid login attempt for {form.username.data}")
+
             flash('Invalid username or password')
             return redirect(url_for('login'))
 
         login_user(user, remember=form.remember_me.data)
 
+        logger.info(f"{user.username} logged in successfully")
+
         next_page = request.args.get('next')
+
         if not next_page or url_parse(next_page).netloc != '':
             next_page = url_for('home')
 
@@ -108,12 +119,15 @@ def login():
 def authorized():
 
     if request.args.get('state') != session.get("state"):
+        logger.warning("Microsoft login failed — invalid state")
         return redirect(url_for("home"))
 
     if "error" in request.args:
+        logger.warning("Microsoft login failed")
         return render_template("auth_error.html", result=request.args)
 
     if request.args.get('code'):
+
         cache = _load_cache()
 
         result = _build_msal_app(cache=cache).acquire_token_by_authorization_code(
@@ -123,13 +137,16 @@ def authorized():
         )
 
         if "error" in result:
+            logger.warning("Microsoft login failed — token error")
             return render_template("auth_error.html", result=result)
 
         session["user"] = result.get("id_token_claims")
 
-        # Log in as admin user for CMS access
+        # Login as admin
         user = User.query.filter_by(username="admin").first()
         login_user(user)
+
+        logger.info("Microsoft user logged in successfully")
 
         _save_cache(cache)
 
@@ -139,6 +156,7 @@ def authorized():
 # -------- LOGOUT --------
 @app.route('/logout')
 def logout():
+
     logout_user()
 
     if session.get("user"):
