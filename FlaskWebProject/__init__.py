@@ -9,6 +9,8 @@ from flask_login import LoginManager
 from flask_session import Session
 from werkzeug.middleware.proxy_fix import ProxyFix  # ✅ Added for Azure HTTPS support
 
+logging.basicConfig(level=logging.INFO)
+
 app = Flask(__name__)
 app.config.from_object(Config)
 
